@@ -1,0 +1,7 @@
+build/
+*.o
+*.out
+*.dSYM/
+frame_stream
+bench
+.DS_Store
