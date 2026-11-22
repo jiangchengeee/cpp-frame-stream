@@ -48,7 +48,17 @@ cmake .. && make -j
 4. 优雅退出怎么保证不丢任务？
 5. QPS / P99 多少，瓶颈在哪？
 
-## Linux 开发环境（第 2 周起必须）
+## 一键开发（推荐，不用记 docker 命令）
+
+```bash
+cd ~/Desktop/简历/实习备战/cpp-frame-stream
+./dev.sh                                              # 进入 Linux 开发容器
+./dev.sh "cmake -B build && cmake --build build -j"   # 编译一下就退出
+```
+
+`dev.sh` 会自动启动 colima 虚拟机并把当前目录挂载到容器的 `/work`。
+
+## Linux 开发环境（手动版，了解原理用）
 
 macOS 没有 epoll，用 colima 起一个 Linux 虚拟机 + Docker 开发镜像：
 
