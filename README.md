@@ -47,3 +47,21 @@ cmake .. && make -j
 3. 队列满了怎么办，三种背压策略的取舍？
 4. 优雅退出怎么保证不丢任务？
 5. QPS / P99 多少，瓶颈在哪？
+
+## Linux 开发环境（第 2 周起必须）
+
+macOS 没有 epoll，用 colima 起一个 Linux 虚拟机 + Docker 开发镜像：
+
+```bash
+# 1. 启动 Linux 虚拟机（装过一次就行，重启电脑后需要再执行）
+colima start
+
+# 2. 进入开发容器（代码目录挂载到 /work）
+docker run --rm -it -v "$PWD":/work -w /work frame-dev bash
+
+# 3. 容器里编译
+cmake -B build && cmake --build build -j && ./build/frame_stream
+```
+
+镜像 `frame-dev` 由 `docker/Dockerfile` 定义（Ubuntu 24.04 + g++ 13 + cmake + gdb + strace）。
+重建镜像：`docker build -t frame-dev docker/`
