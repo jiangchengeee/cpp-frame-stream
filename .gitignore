@@ -4,4 +4,6 @@ build/
 *.dSYM/
 frame_stream
 bench
+a3
+m
 .DS_Store
