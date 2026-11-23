@@ -12,7 +12,10 @@ $(BIN): $(SRC)
 run: $(BIN)
 	./$(BIN)
 
+test:
+	$(CXX) $(CXXFLAGS) -pthread tests/test_bounded_queue.cpp -o /tmp/tq && /tmp/tq
+
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run clean
+.PHONY: all run test clean
