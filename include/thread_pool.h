@@ -22,6 +22,8 @@ public:
         //   for (std::size_t i = 0; i < worker_count; ++i)
         //       workers_.emplace_back([this] { worker_loop(); });
         // 说明：每个线程都去跑 worker_loop()，进去后就会阻塞在 q_.pop() 上等任务
+        for(std::size_t i=0;i<worker_count;++i)
+           workers_.emplace_back([this]{worker_loop();} );
     }
 
     ~ThreadPool() { shutdown(); }
@@ -31,9 +33,9 @@ public:
     // 步骤：
     //   ① return q_.push(std::move(task));
     bool submit(std::function<void()> task) {
-        (void)task;
-        // TODO 2: 在这里写上面 ①
-        return false;
+        // (void)task;
+        return q_.push(std::move(task));
+        // return false;
     }
 
     // ---------------- TODO 3：优雅关闭 ----------------
@@ -44,6 +46,9 @@ public:
     //   ③ for (auto& t : workers_) if (t.joinable()) t.join();   // 等每个 worker 真正结束
     void shutdown() {
         // TODO 3: 在这里写上面 ①~③
+        if(stopped_.exchange(true))return ;
+        q_.shutdown();
+        for(auto& t:workers_)if(t.joinable())t.join();
     }
 
     std::size_t pending() const { return q_.size(); }
@@ -60,6 +65,10 @@ private:
     // 说明：q_.pop() 在「队列关闭且为空」时返回 false，循环自然结束 → 线程退出
     void worker_loop() {
         // TODO 4: 在这里写上面这段 while 循环
+        std::function<void()>task;
+        while(q_.pop(task)){
+            task();
+        }
     }
 
     BoundedQueue<std::function<void()>> q_;

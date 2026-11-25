@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 
 using clk = std::chrono::steady_clock;
@@ -38,10 +39,12 @@ int main() {
             auto t0 = clk::now();
             for (int i = 0; i < N / 10; ++i) {
                 pool.submit([&c2] {
-                    volatile double x = 1.0;
-                    for (int k = 0; k < 2000; ++k) x = x * 1.000001 + 0.5;
-                    (void)x;
-                    c2.fetch_add(1, std::memory_order_relaxed);
+                    // 纯寄存器运算（xorshift），真正 CPU 密集型，不会被编译器优化掉
+                    std::uint64_t h = 88172645463325252ULL;
+                    for (int k = 0; k < 2000; ++k) {
+                        h ^= h << 13; h ^= h >> 7; h ^= h << 17;
+                    }
+                    c2.fetch_add((long long)(h & 1), std::memory_order_relaxed);
                 });
             }
             pool.shutdown();
