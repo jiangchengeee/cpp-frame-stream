@@ -1,77 +1,126 @@
-# cpp-frame-stream · 传感器帧流处理服务
+# cpp-frame-stream
 
-Linux 上的 C++17 多线程服务：**接收帧 → 有界队列 → 工作线程处理 → 输出**，带背压与压测。
+从零手写的 C++17 并发基础设施，以及基于它构建的**传感器帧流处理服务**（开发中）。
 
-## 状态：🚧 开发中（2026.11.22 起，计划 14 天）
+目标场景：机器人 / AI Infra 里持续到达的数据帧（传感器数据、训练样本）需要被多个 worker 并发处理。当处理速度跟不上到达速度时，系统必须**可控地降级**（背压），而不是把内存吃爆。
 
-| 里程碑 | 内容 | 状态 |
+---
+
+## 当前进度
+
+| 模块 | 状态 | 测试 |
 |---|---|---|
-| M1 | 工程可编译 | ✅ |
-| M2 | 有界队列 + 线程池 | ⬜ |
-| M3 | epoll echo（LT） | ⬜ |
-| M4 | 长度头分帧 + ET 非阻塞 | ⬜ |
-| M5 | 帧流管线 + 背压 | ⬜ |
-| M6 | 压测数据（QPS / P50 / P99） | ⬜ |
-| M7 | README 定稿 | ⬜ |
+| 有界阻塞队列 `BoundedQueue` | ✅ 完成 | 4 组用例全过 |
+| 线程池 `ThreadPool` | ✅ 完成 | 4 组用例全过 |
+| 吞吐压测工具 `bench_pool` | ✅ 完成 | 1 / 2 / 4 / 8 worker 对比 |
+| epoll Reactor（`Poller` / `EventLoop` / `Channel` / `Buffer`） | 🚧 进行中 | — |
+| 帧流管线 + 背压策略 | ⬜ 待做 | — |
+| 服务端 QPS / P50 / P99 | ⬜ 待做 | — |
 
 ## 架构
 
 ```
 client ──TCP──▶ [epoll Reactor] ──完整帧──▶ [BoundedQueue] ──▶ [worker 1..N] ──▶ 输出
-                                                  ▲
-                                             背压策略（拒收 / 丢帧 / 降速）
+                     (Poller/EventLoop/        （背压策略）
+                      Channel/Buffer)
 ```
 
-## 构建
-
-```bash
-# macOS 先装工具链
-brew install cmake
-
-mkdir -p build && cd build
-cmake .. && make -j
-./frame_stream
-```
-
-> 第 2 周写 epoll 时需要有 Linux 环境：Docker Desktop（`docker run -it --rm -v $PWD:/app -w /app ubuntu:24.04 bash`）
-> 或云服务器 / UTM 虚拟机。
+---
 
 ## 设计取舍
 
-（随实现补充，最终至少写清 3 条：为什么用长度头、为什么有界、为什么单 Reactor）
+### 1. 队列为什么是"有界"的
 
-## 验收问题（面试原题，见 `../02-项目规格.md`）
+- **内存可控**：无界队列在"生产者快、消费者慢"时会无限增长，最终 OOM。
+- **天然背压**：队列满时 `push` 阻塞，提交方被迫慢下来，和下游消费速度对齐。
+- **延迟可控**：积压深度有上限，端到端延迟就有上限。
 
-1. 为什么 4 字节长度头而不是分隔符？
-2. ET 与 LT 的区别，ET 为什么必须非阻塞？
-3. 队列满了怎么办，三种背压策略的取舍？
-4. 优雅退出怎么保证不丢任务？
-5. QPS / P99 多少，瓶颈在哪？
+### 2. 为什么用两个条件变量，而不是一个
 
-## 一键开发（推荐，不用记 docker 命令）
+`not_full_` 只让生产者等待空位，`not_empty_` 只让消费者等待数据。
 
-```bash
-cd ~/Desktop/简历/实习备战/cpp-frame-stream
-./dev.sh                                              # 进入 Linux 开发容器
-./dev.sh "cmake -B build && cmake --build build -j"   # 编译一下就退出
+若共用一个条件变量，`notify_one()` 可能唤醒**类型不匹配**的等待者（例如消费者取走数据后，唤醒了另一个生产者），被唤醒者发现条件不满足又睡回去，而另一类线程迟迟不醒，极端情况下全部线程互等 —— **死锁**。
+
+> 已实测：把两个条件变量合并成一个后，`1 生产者 + 2 消费者` 场景下 4 次运行中出现 1 次卡死。
+
+### 3. `shutdown()` 的语义
+
+`shutdown()` 之后：**队列不再接收新任务，但已入队的任务仍会被消费完**，等待中的线程被全部唤醒后退出。
+这保证线程池析构时"不丢任务"。
+
+### 4. 线程池为什么不用"来一个任务 new 一个线程"
+
+线程创建/销毁是 10–100 微秒级的开销，还要分配默认 8 MB 栈。百万级任务下不可行。
+线程池让固定数量的 worker 常驻，任务通过队列分发，线程被复用。
+
+### 5. 优雅退出的顺序（`shutdown`）
+
+```
+stopped_.exchange(true)      // 防止重复关闭（析构函数也会调用本方法）
+q_.shutdown()                // 不接收新任务，唤醒所有等待中的 worker
+for (t : workers_) t.join()  // 等每个 worker 真正结束
 ```
 
-`dev.sh` 会自动启动 colima 虚拟机并把当前目录挂载到容器的 `/work`。
+顺序不能反：先 join 后 shutdown 会**永久阻塞**（worker 还在等新任务，永远不会退出）。
 
-## Linux 开发环境（手动版，了解原理用）
+### 6. 压测方法
 
-macOS 没有 epoll，用 colima 起一个 Linux 虚拟机 + Docker 开发镜像：
+- 用 `steady_clock` 计时（`system_clock` 会被 NTP 校时回跳，出现负数耗时）。
+- **两种负载分别测**：轻任务（一次原子加，测线程池自身开销）与重任务（xorshift 纯寄存器计算，测真实并行加速比）。
+- 任务把计算结果写回共享原子变量，**防止编译器把整个计算优化掉**（benchmark 最常见的坑）。
+- 队列容量 4096，`submit` 在满时阻塞，所以测出来的是**端到端吞吐**，不是"提交速度"。
 
-```bash
-# 1. 启动 Linux 虚拟机（装过一次就行，重启电脑后需要再执行）
-colima start
+---
 
-# 2. 进入开发容器（代码目录挂载到 /work）
-docker run --rm -it -v "$PWD":/work -w /work frame-dev bash
+## 实测数据
 
-# 3. 容器里编译
-cmake -B build && cmake --build build -j && ./build/frame_stream
+环境：Apple M5 宿主，容器分配 **4 vCPU**，Ubuntu 24.04，g++ 13.3.0，`-O2`。
+任务数：轻任务 100 万，重任务 10 万（每个任务 2000 次寄存器运算）。
+
+| workers | 轻任务（万/秒） | 重任务（万/秒） |
+|---|---|---|
+| 1 | 1484 | 26.7 |
+| 2 | 1329 | 21.5 |
+| 4 | 1166 | **118.6** |
+| 8 | 717 | 134.4 |
+
+**结论**
+
+1. **轻任务：worker 越多反而越慢。** 任务本身只值一次原子加，瓶颈是"主线程串行提交 + 所有 worker 抢同一把队列锁"，加人只增加竞争（Amdahl 定律）。
+2. **重任务：4 worker ≈ 1 worker 的 4.4 倍**，接近线性加速。
+3. **8 worker 收益递减**：只有 4 个 vCPU，多出的线程只能轮流上核，切换开销和锁竞争上升。**worker 数 ≈ CPU 核数**为经验最优值。
+4. **2 worker 低于 1 worker 属反常**，重复测试仍出现；怀疑与 Apple Silicon 混合架构（4 性能核 + 6 能效核）的调度有关，未能定位到确凿根因 —— 记录现象，而不是改代码掩盖它。
+
+---
+
+## 目录结构
+
+```
+include/bounded_queue.h    有界阻塞队列（mutex + 2×condition_variable）
+include/thread_pool.h      线程池（worker + 任务队列 + 优雅退出）
+learn/                     学习用小程序（RAII / 竞态 / 原子 / 智能指针 / mini_unique_ptr）
+tests/                     单元测试（无第三方框架，CHECK 宏）
+tools/bench_pool.cpp       线程池吞吐压测
+dev.sh                     一键进入 Linux 开发容器（colima + Docker）
+docker/Dockerfile          开发镜像（Ubuntu 24.04 + g++ 13 + cmake + gdb + strace）
 ```
 
-镜像 `frame-dev` 由 `docker/Dockerfile` 定义（Ubuntu 24.04 + g++ 13 + cmake + gdb + strace）。
-重建镜像：`docker build -t frame-dev docker/`
+## 如何运行
+
+```bash
+./dev.sh                  # 进入 Linux 开发容器（macOS 上用 colima 起虚拟机）
+
+# 容器内
+make test                 # 有界队列测试
+make test-pool            # 线程池测试
+make test-mini            # mini_unique_ptr 测试
+make bench-pool           # 吞吐压测
+```
+
+## 后续计划
+
+- [ ] epoll Reactor，按 `Poller` / `EventLoop` / `Channel` / `Buffer` 四层拆分
+- [ ] 长度头分帧（4 字节）解决粘包 / 半包
+- [ ] 帧流管线：收帧 → 有界队列 → 线程池 → 输出
+- [ ] 背压三策略可切换（拒收 / 丢帧 / 降速）
+- [ ] 服务端压测：QPS、P50、P99、背压触发率
