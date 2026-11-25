@@ -12,10 +12,19 @@ $(BIN): $(SRC)
 run: $(BIN)
 	./$(BIN)
 
+test-mini:
+	$(CXX) $(CXXFLAGS) learn/test_mini_unique_ptr.cpp -o /tmp/tm && /tmp/tm
+
+bench-pool:
+	$(CXX) $(CXXFLAGS) -pthread tools/bench_pool.cpp -o /tmp/bp && /tmp/bp
+
+test-pool:
+	$(CXX) $(CXXFLAGS) -pthread tests/test_thread_pool.cpp -o /tmp/tp && /tmp/tp
+
 test:
 	$(CXX) $(CXXFLAGS) -pthread tests/test_bounded_queue.cpp -o /tmp/tq && /tmp/tq
 
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run test clean
+.PHONY: all run test test-mini test-pool bench-pool clean
