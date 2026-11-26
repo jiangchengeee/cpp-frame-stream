@@ -12,6 +12,12 @@ $(BIN): $(SRC)
 run: $(BIN)
 	./$(BIN)
 
+test-poller:
+	$(CXX) $(CXXFLAGS) tests/test_poller.cpp -o /tmp/tpl && /tmp/tpl
+
+learn-6:
+	$(CXX) $(CXXFLAGS) learn/06_epoll_echo.cpp -o /tmp/e6 && /tmp/e6
+
 test-mini:
 	$(CXX) $(CXXFLAGS) learn/test_mini_unique_ptr.cpp -o /tmp/tm && /tmp/tm
 
@@ -27,4 +33,4 @@ test:
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run test test-mini test-pool bench-pool clean
+.PHONY: all run test test-mini test-pool test-poller bench-pool learn-6 clean

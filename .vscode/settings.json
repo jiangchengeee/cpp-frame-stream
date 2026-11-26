@@ -1,0 +1,8 @@
+{
+  // 关掉 C/C++ 插件的错误波浪线：它在 macOS 上找不到 Linux 头文件，会误报大量红线
+  // 语法错误请以容器内编译结果为准：./dev.sh "make test-poller"
+  "C_Cpp.errorSquiggles": "disabled",
+  "files.associations": {
+    "*.h": "cpp"
+  }
+}

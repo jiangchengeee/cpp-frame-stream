@@ -1,0 +1,19 @@
+{
+  // 说明：这个项目在 Linux 容器里编译，macOS 上没有 sys/epoll.h
+  // 所以编辑器无法完整解析 epoll 相关代码，这是正常现象。
+  // 判断代码对不对的唯一标准：./dev.sh "make test-poller"
+  "configurations": [
+    {
+      "name": "Linux (容器内编译)",
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/learn"
+      ],
+      "defines": [],
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-arm64"
+    }
+  ],
+  "version": 4
+}
