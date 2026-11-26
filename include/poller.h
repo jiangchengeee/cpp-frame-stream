@@ -33,12 +33,11 @@ public:
     // 还要禁止拷贝（两个对象不能管同一个 epoll fd）：
     //   Poller(const Poller&) = delete;
     //   Poller& operator=(const Poller&) = delete;
-    Poller() : ep_(-1), evs_(64) {
-        // TODO 1: 在这里创建 epoll，并加上禁止拷贝的两行
-    }
-    ~Poller() {
-        // TODO 1: 关闭 ep_
-    }
+    Poller() : ep_(::epoll_create1(0)), evs_(64) {}
+    ~Poller() { if (ep_ >= 0) ::close(ep_); }
+
+    Poller(const Poller&) = delete;
+    Poller& operator=(const Poller&) = delete;
 
     // ---------------- TODO 2：注册 fd ----------------
     // 目标：把 fd 加进 epoll 关注 events，同时记住它的 Handler
@@ -48,9 +47,13 @@ public:
     //   ③ handlers_[fd] = std::move(h);   // 记住这个 fd 的处理函数
     //   ④ return true;
     bool add(int fd, std::uint32_t events, Handler h) {
-        (void)fd; (void)events; (void)h;
-        // TODO 2
-        return false;
+        // (void)fd; (void)events; (void)h;
+        // // TODO 2
+        // return false;
+        epoll_event ev{};ev.events=events;ev.data.fd=fd;
+        if(::epoll_ctl(ep_,EPOLL_CTL_ADD,fd,&ev)<0)return false;
+        handlers_[fd]=std::move(h);
+        return true;
     }
 
     // ---------------- TODO 3：修改关注的事件 ----------------
@@ -66,9 +69,11 @@ public:
     //   ① handlers_.erase(fd);                                   // 忘掉处理函数
     //   ② return ::epoll_ctl(ep_, EPOLL_CTL_DEL, fd, nullptr) == 0;
     bool del(int fd) {
-        (void)fd;
-        // TODO 4
-        return false;
+        // (void)fd;
+        // // TODO 4
+        // return false;
+        handlers_.erase(fd);
+        return ::epoll_ctl(ep_,EPOLL_CTL_DEL,fd,nullptr)==0;
     }
 
     // ---------------- TODO 5：等事件并把处理函数跑起来 ----------------
@@ -81,9 +86,15 @@ public:
     //      }
     //   ③ return n;
     int dispatch(int timeout_ms) {
-        (void)timeout_ms;
-        // TODO 5
-        return 0;
+        // (void)timeout_ms;
+        // // TODO 5
+        // return 0;
+        int n=::epoll_wait(ep_,evs_.data(),(int)evs_.size(),timeout_ms);
+        for(int i=0;i<n;++i){
+            auto it=handlers_.find(evs_[i].data.fd);
+            if(it!=handlers_.end())it->second(evs_[i].events);
+        }
+        return n;
     }
 
     // 已实现：等事件但不分发，把 (fd, events) 装进 out（测试里会用到）
