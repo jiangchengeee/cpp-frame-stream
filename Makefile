@@ -12,6 +12,9 @@ $(BIN): $(SRC)
 run: $(BIN)
 	./$(BIN)
 
+test-channel:
+	$(CXX) $(CXXFLAGS) -pthread tests/test_channel.cpp src/channel.cpp src/event_loop.cpp -o /tmp/tch && /tmp/tch
+
 test-poller:
 	$(CXX) $(CXXFLAGS) tests/test_poller.cpp -o /tmp/tpl && /tmp/tpl
 
@@ -33,4 +36,4 @@ test:
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run test test-mini test-pool test-poller bench-pool learn-6 clean
+.PHONY: all run test test-mini test-pool test-poller test-channel bench-pool learn-6 clean
