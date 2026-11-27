@@ -13,7 +13,12 @@
 | 有界阻塞队列 `BoundedQueue` | ✅ 完成 | 4 组用例全过 |
 | 线程池 `ThreadPool` | ✅ 完成 | 4 组用例全过 |
 | 吞吐压测工具 `bench_pool` | ✅ 完成 | 1 / 2 / 4 / 8 worker 对比 |
-| epoll Reactor（`Poller` / `EventLoop` / `Channel` / `Buffer`） | 🚧 进行中 | — |
+| `Poller`（epoll 三件套封装） | ✅ 完成 | 4 组用例全过 |
+| `Channel`（fd + 事件 + 回调） | ✅ 完成 | 3 组用例全过 |
+| `EventLoop`（事件循环 + epoll 同步） | ✅ 完成 | 同上 |
+| `Buffer`（粘包/半包缓冲） | ✅ 完成 | 5 组用例全过 |
+| **回显服务器（四层集成）** | ✅ 完成 | 自测通过（`./frame_stream selftest`）|
+| 帧协议（长度头分帧） | ⬜ 待做 | — |
 | 帧流管线 + 背压策略 | ⬜ 待做 | — |
 | 服务端 QPS / P50 / P99 | ⬜ 待做 | — |
 
