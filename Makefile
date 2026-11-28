@@ -4,6 +4,9 @@ CXXFLAGS ?= -std=c++17 -Wall -Wextra -O2 -g -Iinclude
 SRC      := $(wildcard src/*.cpp)
 BIN      := frame_stream
 
+run-frames: $(BIN)
+	./$(BIN) selftest
+
 all: $(BIN)
 
 $(BIN): $(SRC)
@@ -42,4 +45,4 @@ test:
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run test test-mini test-pool test-poller test-channel test-buffer test-codec bench-pool learn-6 clean
+.PHONY: all run run-frames test test-mini test-pool test-poller test-channel test-buffer test-codec bench-pool learn-6 clean

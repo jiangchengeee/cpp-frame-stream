@@ -51,6 +51,9 @@ public:
         for(auto& t:workers_)if(t.joinable())t.join();
     }
 
+    // 非阻塞提交：队列满时立刻返回 false（背压用，不阻塞调用者）
+    bool try_submit(std::function<void()> task) { return q_.try_push(std::move(task)); }
+
     std::size_t pending() const { return q_.size(); }
     std::size_t worker_count() const { return workers_.size(); }
 
