@@ -129,7 +129,7 @@ private:
     // 要求：处理结果仍是字符串，会被 encode_frame 包成帧写回。
     // ============================================================
     static std::string process(const std::string& payload) {
-        return payload;
+        return "len="+std::to_string(payload.size());
     }
 
     void close_session(int fd) {
@@ -173,7 +173,8 @@ static bool selftest_client(int port) {
         if (got.size() != 1) { ok = false; break; }
         std::printf("[client] 发 %-10s 收到长度=%zu 内容=%s\n",
                     msg.c_str(), got[0].size(), got[0].c_str());
-        if (got[0] != msg) ok = false;     // 因为 process() 目前原样返回
+        std::string expect = "len=" + std::to_string(msg.size());
+        if (got[0] != expect) ok = false;
     }
     ::close(fd);
     return ok;
