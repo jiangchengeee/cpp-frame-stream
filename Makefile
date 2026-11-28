@@ -12,6 +12,9 @@ $(BIN): $(SRC)
 run: $(BIN)
 	./$(BIN)
 
+test-codec:
+	$(CXX) $(CXXFLAGS) tests/test_frame_codec.cpp src/frame_codec.cpp -o /tmp/tfc && /tmp/tfc
+
 test-buffer:
 	$(CXX) $(CXXFLAGS) tests/test_buffer.cpp -o /tmp/tb && /tmp/tb
 
@@ -39,4 +42,4 @@ test:
 clean:
 	rm -rf $(BIN) build
 
-.PHONY: all run test test-mini test-pool test-poller test-channel test-buffer bench-pool learn-6 clean
+.PHONY: all run test test-mini test-pool test-poller test-channel test-buffer test-codec bench-pool learn-6 clean
